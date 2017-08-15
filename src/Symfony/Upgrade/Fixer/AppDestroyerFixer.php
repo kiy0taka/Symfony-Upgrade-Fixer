@@ -34,6 +34,50 @@ class AppDestroyerFixer extends AbstractFixer
 
     const IGNORE_PREFIX = ['eccube.purchase.flow.'];
 
+    private static $USE_APP_SEQUENCES = [
+        [
+            [T_VARIABLE, '$app'],
+            '[',
+            [T_CONSTANT_ENCAPSED_STRING],
+            ']',
+        ],
+        [
+            [T_VARIABLE, '$this'],
+            [T_OBJECT_OPERATOR],
+            [T_STRING, 'app'],
+            '[',
+            [T_CONSTANT_ENCAPSED_STRING],
+            ']',
+        ]
+    ];
+
+    private static $GET_REPOSITORY_SEQUENCES = [
+        [
+            [T_VARIABLE, '$app'],
+            '[',
+            [T_CONSTANT_ENCAPSED_STRING, "'orm.em'"],
+            ']',
+            [T_OBJECT_OPERATOR],
+            [T_STRING, 'getRepository'],
+            '(',
+            [T_CONSTANT_ENCAPSED_STRING],
+            ')'
+        ],
+        [
+            [T_VARIABLE, '$this'],
+            [T_OBJECT_OPERATOR],
+            [T_STRING, 'app'],
+            '[',
+            [T_CONSTANT_ENCAPSED_STRING, "'orm.em'"],
+            ']',
+            [T_OBJECT_OPERATOR],
+            [T_STRING, 'getRepository'],
+            '(',
+            [T_CONSTANT_ENCAPSED_STRING],
+            ')'
+        ]
+    ];
+
     public function __construct()
     {
         $this->pimpleJson = array_reduce(json_decode(file_get_contents(__DIR__.'/../../../pimple.json'), true), function($acc, $val) {
@@ -66,59 +110,56 @@ class AppDestroyerFixer extends AbstractFixer
 
     private function replaceApp(Tokens $tokens)
     {
-        $currentIndex = 0;
-        do {
-            $found = $tokens->findSequence([
-                [T_VARIABLE, '$app'],
-                '[',
-                [T_CONSTANT_ENCAPSED_STRING],
-                ']',
-            ], $currentIndex);
+        foreach (self::$USE_APP_SEQUENCES as $sequence) {
+            $currentIndex = 0;
+            do {
+                $found = $tokens->findSequence($sequence, $currentIndex);
 
-            if ($found) {
-                $indexes = array_keys($found);
-                $componentKey = preg_replace('/[\'"]/', '', $found[$indexes[2]]->getContent());
-                if (isset($this->pimpleJson[$componentKey])) {
-                    $componentDef = $this->pimpleJson[$componentKey];
+                if ($found) {
+                    $indexes = array_keys($found);
+                    $componentKey = preg_replace('/[\'"]/', '', $found[end($indexes)-1]->getContent());
+                    if (isset($this->pimpleJson[$componentKey])) {
+                        $componentDef = $this->pimpleJson[$componentKey];
 
-                    if ($componentDef['type'] === 'class') {
-                        $componentFqcn = explode('\\', $componentDef['value']);
-                        $className = end($componentFqcn);
-                        $varName = lcfirst(str_replace('_', '', $className));
-                        $tokens->clearRange($indexes[0], $indexes[3]);      // -4
-                        $tokens->insertAt($indexes[0], [                    // +3
-                            new Token([T_VARIABLE, '$this']),
-                            new Token([T_OBJECT_OPERATOR, '->']),
-                            new Token([T_STRING, $varName])
-                        ]);
-                        $offset = (- 4 + 3);
-                        if ($this->addField($tokens, $this->isUseClassNameForComponentKey($componentKey) ? $className.'::class' : "\"$componentKey\"", $className, $varName)) {  // +8
-                            $this->addUseStatement($tokens, $componentFqcn);    // +2
-                            $offset += 8;
-                            $offset += 2;
-                        };
-                        $currentIndex = $indexes[3] + $offset;
-                    } else if ($componentKey === 'config') {
-                        $tokens->clearRange($indexes[0], $indexes[3]);      // -4
-                        $tokens->insertAt($indexes[0], [                    // +3
-                            new Token([T_VARIABLE, '$this']),
-                            new Token([T_OBJECT_OPERATOR, '->']),
-                            new Token([T_STRING, 'appConfig'])
-                        ]);
-                        $offset = (- 4 + 3);
-                        if ($this->addField($tokens, '"config"', 'array', 'appConfig')) {
-                            $offset += 8;
+                        if ($componentDef['type'] === 'class') {
+                            $componentFqcn = explode('\\', $componentDef['value']);
+                            $className = end($componentFqcn);
+                            $varName = lcfirst(str_replace('_', '', $className));
+                            $tokens->clearRange($indexes[0], end($indexes));      // -4
+                            $tokens->insertAt($indexes[0], [                    // +3
+                                new Token([T_VARIABLE, '$this']),
+                                new Token([T_OBJECT_OPERATOR, '->']),
+                                new Token([T_STRING, $varName])
+                            ]);
+                            $offset = (- count($sequence) + 3);
+                            if ($this->addField($tokens, $this->isUseClassNameForComponentKey($componentKey) ? $className.'::class' : "\"$componentKey\"", $className, $varName)) {  // +8
+                                $this->addUseStatement($tokens, $componentFqcn);    // +2
+                                $offset += 8;
+                                $offset += 2;
+                            };
+                            $currentIndex = end($indexes) + $offset;
+                        } else if ($componentKey === 'config') {
+                            $tokens->clearRange($indexes[0], end($indexes));      // -4
+                            $tokens->insertAt($indexes[0], [                    // +3
+                                new Token([T_VARIABLE, '$this']),
+                                new Token([T_OBJECT_OPERATOR, '->']),
+                                new Token([T_STRING, 'appConfig'])
+                            ]);
+                            $offset = (- count($sequence) + 3);
+                            if ($this->addField($tokens, '"config"', 'array', 'appConfig')) {
+                                $offset += 8;
+                            }
+                            $currentIndex = end($indexes) + $offset;
+                        } else {
+                            $currentIndex = end($indexes);
                         }
-                        $currentIndex = $indexes[3] + $offset;
                     } else {
-                        $currentIndex = $indexes[3];
+                        $currentIndex = end($indexes);
                     }
-                } else {
-                    $currentIndex = $indexes[3];
                 }
-            }
 
-        } while ($found);
+            } while ($found);
+        }
     }
 
     private function isUseClassNameForComponentKey($componentKey)
@@ -136,42 +177,34 @@ class AppDestroyerFixer extends AbstractFixer
 
     private function replaceGetRepository(Tokens $tokens)
     {
-        $currentIndex = 0;
-        do {
-            $found = $tokens->findSequence([
-                [T_VARIABLE, '$app'],
-                '[',
-                [T_CONSTANT_ENCAPSED_STRING, "'orm.em'"],
-                ']',
-                [T_OBJECT_OPERATOR],
-                [T_STRING, 'getRepository'],
-                '(',
-                [T_CONSTANT_ENCAPSED_STRING],
-                ')'
-            ], $currentIndex);
+        foreach (self::$GET_REPOSITORY_SEQUENCES as $sequence) {
+            $currentIndex = 0;
+            do {
+                $found = $tokens->findSequence($sequence, $currentIndex);
 
-            if ($found) {
-                $indexes = array_keys($found);
-                $entityFqcn = preg_replace('/[\'"]/', '', $found[$indexes[7]]->getContent());
-                $entityName = explode('\\', $entityFqcn);
-                $repositoryName = end($entityName) . 'Repository';
-                $varName = lcfirst($repositoryName);
+                if ($found) {
+                    $indexes = array_keys($found);
+                    $entityFqcn = preg_replace('/[\'"]/', '', $found[$indexes[count($indexes)-2]]->getContent());
+                    $entityName = explode('\\', $entityFqcn);
+                    $repositoryName = end($entityName) . 'Repository';
+                    $varName = lcfirst($repositoryName);
 
-                $tokens->clearRange($indexes[0], $indexes[8]); // -9
-                $tokens->insertAt($indexes[0], [ // +3
-                    new Token([T_VARIABLE, '$this']),
-                    new Token([T_OBJECT_OPERATOR, '->']),
-                    new Token([T_STRING, $varName])
-                ]);
+                    $tokens->clearRange($indexes[0], end($indexes)); // -9
+                    $tokens->insertAt($indexes[0], [ // +3
+                        new Token([T_VARIABLE, '$this']),
+                        new Token([T_OBJECT_OPERATOR, '->']),
+                        new Token([T_STRING, $varName])
+                    ]);
 
-                $this->addField($tokens, $repositoryName.'::class', $repositoryName, $varName); // +8
-                $repositoryFqcn = str_replace('\\Entity\\', '\\Repository\\', $entityFqcn) . 'Repository';
-                $this->addUseStatement($tokens, explode('\\', $repositoryFqcn)); // +2
+                    $this->addField($tokens, $repositoryName.'::class', $repositoryName, $varName); // +8
+                    $repositoryFqcn = str_replace('\\Entity\\', '\\Repository\\', $entityFqcn) . 'Repository';
+                    $this->addUseStatement($tokens, explode('\\', $repositoryFqcn)); // +2
 
-                $currentIndex = $indexes[8] - 9 + 3 + 8 + 2;
-            }
+                    $currentIndex = end($indexes) - count($indexes) + 3 + 8 + 2;
+                }
 
-        } while ($found);
+            } while ($found);
+        }
     }
 
     private function addField(Tokens $tokens, $componentKey, $className, $varName)

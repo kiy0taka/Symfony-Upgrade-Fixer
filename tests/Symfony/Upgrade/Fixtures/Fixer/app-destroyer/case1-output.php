@@ -44,13 +44,13 @@ class UserDataController
     protected $eventDispatcher;
 
     /**
-     * @Inject('twig.loader')
+     * @Inject("twig.loader")
      * @var Twig_Loader_Chain
      */
     protected $twigLoaderChain;
 
     /**
-     * @Inject('config')
+     * @Inject("config")
      * @var array
      */
     protected $appConfig;

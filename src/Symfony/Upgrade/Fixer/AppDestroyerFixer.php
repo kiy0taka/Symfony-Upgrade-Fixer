@@ -92,7 +92,7 @@ class AppDestroyerFixer extends AbstractFixer
                             new Token([T_STRING, $varName])
                         ]);
                         $offset = (- 4 + 3);
-                        if ($this->addField($tokens, $this->isUseClassNameForComponentKey($componentKey) ? $className.'::class' : "'$componentKey'", $className, $varName)) {  // +8
+                        if ($this->addField($tokens, $this->isUseClassNameForComponentKey($componentKey) ? $className.'::class' : "\"$componentKey\"", $className, $varName)) {  // +8
                             $this->addUseStatement($tokens, $componentFqcn);    // +2
                             $offset += 8;
                             $offset += 2;
@@ -106,7 +106,7 @@ class AppDestroyerFixer extends AbstractFixer
                             new Token([T_STRING, 'appConfig'])
                         ]);
                         $offset = (- 4 + 3);
-                        if ($this->addField($tokens, '\'config\'', 'array', 'appConfig')) {
+                        if ($this->addField($tokens, '"config"', 'array', 'appConfig')) {
                             $offset += 8;
                         }
                         $currentIndex = $indexes[3] + $offset;

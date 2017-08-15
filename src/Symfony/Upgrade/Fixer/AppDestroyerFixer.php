@@ -32,7 +32,7 @@ class AppDestroyerFixer extends AbstractFixer
 {
     private $pimpleJson;
 
-    const IGNORE_PREFIX = ['eccube.purchase.flow.'];
+    const IGNORE_PREFIX = ['eccube.purchase.flow.', 'eccube.queries', 'eccube.event.dispatcher'];
 
     private static $USE_APP_SEQUENCES = [
         [

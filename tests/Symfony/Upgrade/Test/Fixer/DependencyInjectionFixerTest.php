@@ -26,11 +26,11 @@ namespace Symfony\Upgrade\Fixer;
 
 use Symfony\Upgrade\Test\Fixer\AbstractFixerTestBase;
 
-class AppDestroyerFixerTest extends AbstractFixerTestBase
+class DependencyInjectionFixerTest extends AbstractFixerTestBase
 {
     protected function getFixer()
     {
-        return new AppDestroyerFixer();
+        return new DependencyInjectionFixer();
     }
 
     /**

@@ -28,7 +28,7 @@ use Symfony\CS\DocBlock\DocBlock;
 use Symfony\CS\Tokenizer\Token;
 use Symfony\CS\Tokenizer\Tokens;
 
-class AppDestroyerFixer extends AbstractFixer
+class DependencyInjectionFixer extends AbstractFixer
 {
     private $pimpleJson;
 
